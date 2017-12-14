@@ -1,26 +1,27 @@
+#include <iostream>
 #include <objbase.h>
-#include <d3dcompiler.h>
 #include "D3d12GraphicsManager.hpp"
 #include "WindowsApplication.hpp"
 #include "SceneManager.hpp"
 #include "AssetLoader.hpp"
 
 using namespace My;
+using namespace std;
 
 
 namespace My {
     extern IApplication* g_pApp;
 
-	template<class T>
-	inline void SafeRelease(T **ppInterfaceToRelease)
-	{
-		if (*ppInterfaceToRelease != nullptr)
-		{
-			(*ppInterfaceToRelease)->Release();
+    template<class T>
+    inline void SafeRelease(T **ppInterfaceToRelease)
+    {
+        if (*ppInterfaceToRelease != nullptr)
+        {
+            (*ppInterfaceToRelease)->Release();
 
-			(*ppInterfaceToRelease) = nullptr;
-		}
-	}
+            (*ppInterfaceToRelease) = nullptr;
+        }
+    }
 
     static void GetHardwareAdapter(IDXGIFactory4* pFactory, IDXGIAdapter1** ppAdapter)
     {
@@ -137,7 +138,7 @@ HRESULT My::D3d12GraphicsManager::CreateDepthStencil()
         return hr;
     }
 
-	// Create the depth stencil view.
+    // Create the depth stencil view.
     D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilDesc = {};
     depthStencilDesc.Format = DXGI_FORMAT_D32_FLOAT;
     depthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
@@ -323,31 +324,31 @@ HRESULT My::D3d12GraphicsManager::CreateGraphicsResources()
     HRESULT hr;
 
 #if defined(_DEBUG)
-	// Enable the D3D12 debug layer.
-	{
-		ID3D12Debug* pDebugController;
-		if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&pDebugController))))
-		{
-			pDebugController->EnableDebugLayer();
-		}
-		SafeRelease(&pDebugController);
-	}
+    // Enable the D3D12 debug layer.
+    {
+        ID3D12Debug* pDebugController;
+        if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&pDebugController))))
+        {
+            pDebugController->EnableDebugLayer();
+        }
+        SafeRelease(&pDebugController);
+    }
 #endif
 
-	IDXGIFactory4* pFactory;
-	if (FAILED(hr = CreateDXGIFactory1(IID_PPV_ARGS(&pFactory)))) {
-		return hr;
-	}
+    IDXGIFactory4* pFactory;
+    if (FAILED(hr = CreateDXGIFactory1(IID_PPV_ARGS(&pFactory)))) {
+        return hr;
+    }
 
-	IDXGIAdapter1* pHardwareAdapter;
-	GetHardwareAdapter(pFactory, &pHardwareAdapter);
+    IDXGIAdapter1* pHardwareAdapter;
+    GetHardwareAdapter(pFactory, &pHardwareAdapter);
 
-	if (FAILED(D3D12CreateDevice(pHardwareAdapter,
-		D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&m_pDev)))) {
+    if (FAILED(D3D12CreateDevice(pHardwareAdapter,
+        D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&m_pDev)))) {
 
-		IDXGIAdapter* pWarpAdapter;
-		if (FAILED(hr = pFactory->EnumWarpAdapter(IID_PPV_ARGS(&pWarpAdapter)))) {
-	        SafeRelease(&pFactory);
+        IDXGIAdapter* pWarpAdapter;
+        if (FAILED(hr = pFactory->EnumWarpAdapter(IID_PPV_ARGS(&pWarpAdapter)))) {
+            SafeRelease(&pFactory);
             return hr;
         }
 
@@ -356,7 +357,7 @@ HRESULT My::D3d12GraphicsManager::CreateGraphicsResources()
             SafeRelease(&pFactory);
             return hr;
         }
-	}
+    }
 
 
     HWND hWnd = reinterpret_cast<WindowsApplication*>(g_pApp)->GetMainWindow();
@@ -380,7 +381,7 @@ HRESULT My::D3d12GraphicsManager::CreateGraphicsResources()
     // fill the swap chain description struct
     scd.Width  = g_pApp->GetConfiguration().screenWidth;
     scd.Height = g_pApp->GetConfiguration().screenHeight;
-    scd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;     	        // use 32-bit color
+    scd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;              // use 32-bit color
     scd.Stereo = FALSE;
     scd.SampleDesc.Count = 1;                               // multi-samples can not be used when in SwapEffect sets to
                                                             // DXGI_SWAP_EFFECT_FLOP_DISCARD
@@ -411,25 +412,41 @@ HRESULT My::D3d12GraphicsManager::CreateGraphicsResources()
 
     m_nFrameIndex = m_pSwapChain->GetCurrentBackBufferIndex();
 
+    cout << "Creating Descriptor Heaps ...";
     if (FAILED(hr = CreateDescriptorHeaps())) {
         return hr;
     }
+    cout << "Done!" << endl;
 
+    cout << "Creating Render Targets ...";
     if (FAILED(hr = CreateRenderTarget())) {
         return hr;
     }
+    cout << "Done!" << endl;
 
+    cout << "Creating Depth Stencil Buffers ...";
     if (FAILED(hr = CreateDepthStencil())) {
         return hr;
     }
+    cout << "Done!" << endl;
 
+    cout << "Creating Root Signatures ...";
     if (FAILED(hr = CreateRootSignature())) {
         return hr;
     }
+    cout << "Done!" << endl;
 
+    cout << "Loading Shaders ...";
     if (FAILED(hr = InitializeShader("Shaders/simple.hlsl.vs", "Shaders/simple.hlsl.ps"))) {
         return hr;
     }
+    cout << "Done!" << endl;
+
+    cout << "Initialize Buffers ...";
+    if (FAILED(hr = InitializeBuffers())) {
+        return hr;
+    }
+    cout << "Done!" << endl;
 
     return hr;
 }
@@ -522,9 +539,30 @@ HRESULT My::D3d12GraphicsManager::InitializeShader(const char* vsFilename, const
         {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 40, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
     };
 
-    D3D12_RASTERIZER_DESC rsd = {};
-    D3D12_BLEND_DESC bld = {};
-    D3D12_DEPTH_STENCIL_DESC dsd = {};
+    D3D12_RASTERIZER_DESC rsd = { D3D12_FILL_MODE_SOLID, D3D12_CULL_MODE_BACK, FALSE, D3D12_DEFAULT_DEPTH_BIAS, D3D12_DEFAULT_DEPTH_BIAS_CLAMP,
+                                  TRUE, FALSE, FALSE, 0, D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF };
+    const D3D12_RENDER_TARGET_BLEND_DESC defaultRenderTargetBlend = { FALSE, FALSE,
+        D3D12_BLEND_ONE, D3D12_BLEND_ZERO, D3D12_BLEND_OP_ADD,
+        D3D12_BLEND_ONE, D3D12_BLEND_ZERO, D3D12_BLEND_OP_ADD,
+        D3D12_LOGIC_OP_NOOP,
+        D3D12_COLOR_WRITE_ENABLE_ALL
+    };
+
+    D3D12_BLEND_DESC bld = { FALSE, FALSE,
+                                             {
+                                               defaultRenderTargetBlend,
+                                               defaultRenderTargetBlend,
+                                               defaultRenderTargetBlend,
+                                               defaultRenderTargetBlend,
+                                               defaultRenderTargetBlend,
+                                               defaultRenderTargetBlend,
+                                               defaultRenderTargetBlend,
+                                             }
+                                    };
+
+    const D3D12_DEPTH_STENCILOP_DESC defaultStencilOp = { D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_COMPARISON_FUNC_ALWAYS };
+    D3D12_DEPTH_STENCIL_DESC dsd = { TRUE, D3D12_DEPTH_WRITE_MASK_ALL, D3D12_COMPARISON_FUNC_LESS, FALSE, D3D12_DEFAULT_STENCIL_READ_MASK, D3D12_DEFAULT_STENCIL_WRITE_MASK, 
+        defaultStencilOp, defaultStencilOp };
 
     // describe and create the graphics pipeline state object (PSO)
     D3D12_GRAPHICS_PIPELINE_STATE_DESC psod = {};
@@ -632,10 +670,10 @@ void My::D3d12GraphicsManager::Finalize()
     SafeRelease(&m_pCommandQueue);
     SafeRelease(&m_pCommandAllocator);
     for (uint32_t i = 0; i < kFrameCount; i++) {
-	    SafeRelease(&m_pRenderTargets[kFrameCount]);
+        SafeRelease(&m_pRenderTargets[kFrameCount]);
     }
-	SafeRelease(&m_pSwapChain);
-	SafeRelease(&m_pDev);
+    SafeRelease(&m_pSwapChain);
+    SafeRelease(&m_pDev);
 }
 
 void My::D3d12GraphicsManager::Clear()
